@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smoke Detector</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background: radial-gradient(circle at top left, #002f4b, #dc4225);
+      font-family: 'Rubik', sans-serif;
+      margin: 0;
+      padding: 0;
+      color: #fff;
+    }
+    .container-main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 30px 20px;
+    }
+    .upload-card {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 40px 30px;
+      max-width: 600px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+      animation: slideUp 1.1s ease;
+    }
+    @keyframes slideUp {
+      0% { transform: translateY(40px); opacity: 0; }
+      100% { transform: translateY(0); opacity: 1; }
+    }
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    p.subtitle {
+      font-size: 1rem;
+      margin-bottom: 30px;
+      opacity: 0.9;
+    }
+    .upload-area {
+      border: 2px dashed #fff;
+      padding: 30px;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    .upload-area:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    input[type="file"] {
+      display: none;
+    }
+    #previewImg {
+      margin: 20px 0;
+      max-width: 80%;
+      border-radius: 12px;
+      display: none;
+    }
+    .btn-analyze {
+      width: 100%;
+      background: linear-gradient(90deg, #f12711, #f5af19);
+      border: none;
+      padding: 12px 0;
+      font-weight: 600;
+      font-size: 1.1rem;
+      border-radius: 10px;
+      margin-top: 20px;
+      color: #fff;
+    }
+    .result-box {
+      margin-top: 30px;
+      background: #ffffff11;
+      padding: 20px;
+      border-radius: 14px;
+      display: none;
+    }
+    .alert {
+      font-size: 1rem;
+      border-radius: 10px;
+    }
+    .footer {
+      margin-top: 60px;
+      text-align: center;
+      font-size: 0.9rem;
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="container-main">
+    <div class="upload-card">
+      <h1>Smoke Detector</h1>
+      <p class="subtitle">Upload your image (JPG/PNG) to detect smoke using our AI model.</p>
+
+      <label class="upload-area" for="fileInput" id="fileLabel">
+        <div id="fileLabelText">📤 Click or drop an image here</div>
+      </label>
+      <input type="file" id="fileInput" accept="image/*" onchange="onFileSelected(event)">
+
+      <img id="previewImg" alt="Preview" />
+
+      <button class="btn btn-analyze" onclick="uploadFile()" id="analyzeBtn">
+        🔍 Analyze Image
+        <span class="spinner-border spinner-border-sm d-none" id="spinner" role="status"></span>
+      </button>
+
+      <div class="result-box" id="results">
+        <div id="detectionResult" class="alert alert-success"></div>
+        <img id="resultImage" class="img-fluid mt-2" style="border-radius: 10px;" />
+      </div>
+
+      <div class="alert alert-danger mt-3 d-none" id="errorAlert"></div>
+    </div>
+
+    <div class="footer">
+      &copy; 2025 Wild Fire Detector — Powered by YOLOv5 & Transfer Learning 🚀
+    </div>
+  </div>
+
+  <script>
+    let selectedFile = null;
+
+    function onFileSelected(event) {
+      selectedFile = event.target.files[0];
+      const labelText = document.getElementById('fileLabelText');
+      const previewImg = document.getElementById('previewImg');
+
+      if (selectedFile) {
+        labelText.textContent = selectedFile.name;
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          previewImg.src = e.target.result;
+          previewImg.style.display = "block";
+        };
+        reader.readAsDataURL(selectedFile);
+      } else {
+        labelText.textContent = "📤 Click or drop an image here";
+        previewImg.style.display = "none";
+      }
+    }
+
+    document.getElementById('fileLabel').onclick = () => {
+      document.getElementById('fileInput').click();
+    };
+
+    async function uploadFile() {
+      const spinner = document.getElementById('spinner');
+      const analyzeBtn = document.getElementById('analyzeBtn');
+      const errorAlert = document.getElementById('errorAlert');
+      const results = document.getElementById('results');
+      const resultImage = document.getElementById('resultImage');
+      const detectionResult = document.getElementById('detectionResult');
+
+      errorAlert.classList.add('d-none');
+      results.style.display = 'none';
+      resultImage.src = '';
+      detectionResult.textContent = '';
+
+      if (!selectedFile) {
+        errorAlert.textContent = "Please select an image file!";
+        errorAlert.classList.remove('d-none');
+        return;
+      }
+
+      spinner.classList.remove('d-none');
+      analyzeBtn.disabled = true;
+
+      try {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        const response = await fetch('/predict', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+
+        const data = await response.json();
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        detectionResult.textContent = data.detection || "Detection complete.";
+        resultImage.src = `data:image/jpeg;base64,${data.image}`;
+        results.style.display = 'block';
+
+      } catch (error) {
+        errorAlert.textContent = error.message || 'Something went wrong!';
+        errorAlert.classList.remove('d-none');
+      } finally {
+        spinner.classList.add('d-none');
+        analyzeBtn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>
